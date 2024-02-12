@@ -1,3 +1,6 @@
+const db = require('../../data/db-config.js');
+const knex = require('../knexfile').development;
+
 function find() { // EXERCISE A
   /*
     1A- Study the SQL query below running it in SQLite Studio against `data/schemes.db3`.
@@ -15,9 +18,16 @@ function find() { // EXERCISE A
     2A- When you have a grasp on the query go ahead and build it in Knex.
     Return from this function the resulting dataset.
   */
+
+    return db('schemes as sc')
+    .select('sc.*')
+    .count('st.step_id as number_of_steps')
+    .leftJoin('steps as st', 'sc.scheme_id', 'st.scheme_id')
+    .groupBy('sc.scheme_id')
+    .orderBy('sc.scheme_id', 'asc');
 }
 
-function findById(scheme_id) { // EXERCISE B
+async function findById(scheme_id) { // EXERCISE B
   /*
     1B- Study the SQL query below running it in SQLite Studio against `data/schemes.db3`:
 
@@ -83,6 +93,41 @@ function findById(scheme_id) { // EXERCISE B
         "steps": []
       }
   */
+
+      const { scheme_id } = req.params;
+
+  try {
+          const rows = await knex('schemes as sc')
+    .leftJoin('steps as st', 'sc.scheme_id', 'st.scheme_id')
+    .select('sc.scheme_name', 'st.*')
+    .where('sc.scheme_id', scheme_id)
+    .orderBy('st.step_number', 'asc');
+
+    //Transformation data into desired structure so the resulting data does not look like a scheme,
+    //but more like an array of steps each including scheme information: written in Vanilla JavaScript
+
+    const result = rows.reduce((acc, row) => {
+      if(!acc.scheme_id) {
+        acc.scheme_id = row.scheme_id;
+        acc.scheme_name = row.scheme_name;
+        acc.steps = [];
+      }
+      if(row.step_id) { // If step exists
+        acc.steps.push({
+          step_id: row.step_id,
+          step_number: row.step_number,
+          instruction: row.instruction
+        });
+
+      }
+      return acc;
+    }, { scheme_id: parseInt(scheme_id), scheme_name: '', steps: [] });
+    res.json(result);
+
+} catch(error) {
+      console.log(error);
+      res.status(500).send('An error occurred');
+   }
 }
 
 function findSteps(scheme_id) { // EXERCISE C
