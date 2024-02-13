@@ -2,6 +2,7 @@
 const express = require('express')
 const { checkSchemeId, validateScheme, validateStep } = require('./scheme-middleware')
 const Schemes = require('./scheme-model.js')
+//const knex = require('knex')(require('../knexfile').development); // Adjust path as needed
 
 const router = express.Router()
 
@@ -102,6 +103,7 @@ router.get('/:scheme_id/steps', checkSchemeId, (req, res, next) => {
 */
 router.post('/', validateScheme, (req, res, next) => {
   const scheme = req.body
+  //const { scheme_id} = req.params
 
   Schemes.add(scheme)
     .then(scheme => {

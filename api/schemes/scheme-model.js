@@ -1,5 +1,5 @@
 const db = require('../../data/db-config.js');
-const knex = require('../knexfile').development;
+
 
 function find() { // EXERCISE A
   /*
@@ -94,41 +94,40 @@ async function findById(scheme_id) { // EXERCISE B
       }
   */
 
-      const { scheme_id } = req.params;
-
-  try {
-          const rows = await knex('schemes as sc')
-    .leftJoin('steps as st', 'sc.scheme_id', 'st.scheme_id')
-    .select('sc.scheme_name', 'st.*')
-    .where('sc.scheme_id', scheme_id)
-    .orderBy('st.step_number', 'asc');
-
-    //Transformation data into desired structure so the resulting data does not look like a scheme,
-    //but more like an array of steps each including scheme information: written in Vanilla JavaScript
-
-    const result = rows.reduce((acc, row) => {
-      if(!acc.scheme_id) {
-        acc.scheme_id = row.scheme_id;
-        acc.scheme_name = row.scheme_name;
-        acc.steps = [];
-      }
-      if(row.step_id) { // If step exists
-        acc.steps.push({
-          step_id: row.step_id,
-          step_number: row.step_number,
-          instruction: row.instruction
-        });
-
-      }
-      return acc;
-    }, { scheme_id: parseInt(scheme_id), scheme_name: '', steps: [] });
-    res.json(result);
-
-} catch(error) {
-      console.log(error);
-      res.status(500).send('An error occurred');
-   }
-}
+  
+      const rows = await db('schemes as sc')
+      .leftJoin('steps as st', 'sc.scheme_id', 'st.scheme_id')
+      .select(
+        'st.*',
+        'sc.scheme_name'    
+      )
+      .where('sc.scheme_id', scheme_id)
+      .orderBy('st.step_number');
+  
+    // If no rows are returned, the scheme doesn't exist
+    if (rows.length === 0) {
+      return null; // Ensure your route/controller handles this case properly
+    }
+  
+    // Transform the flat array of rows into a nested object
+    const result = {
+      scheme_id: rows[0].scheme_id, // Assuming scheme_id is always present in the rows
+      scheme_name: rows[0].scheme_name, // Taking scheme_name from the first row
+      steps: rows.reduce((acc, row) => {
+        if (row.step_id != null) { // Ensuring step_id is not null before adding
+          acc.push({
+            step_id: row.step_id,
+            step_number: row.step_number,
+            instructions: row.instructions
+          });
+        }
+        return acc;
+      }, [])
+    };
+  
+    return result;
+  }
+      
 
 function findSteps(scheme_id) { // EXERCISE C
   /*
@@ -151,20 +150,40 @@ function findSteps(scheme_id) { // EXERCISE C
         }
       ]
   */
+
+        return db('steps as st')
+          .join('schemes as sc', 'st.scheme_id', 'sc.scheme_id')
+          .select('st.step_id', 'st.step_number', 'st.instructions', 'sc.scheme_name')
+          .where('st.scheme_id', scheme_id)
+          .orderBy('st.step_number');
+  
+      
 }
 
-function add(scheme) { // EXERCISE D
+async function add(scheme) { // EXERCISE D
   /*
     1D- This function creates a new scheme and resolves to _the newly created scheme_.
   */
+    // Insert the new scheme and capture the scheme_id
+  const [scheme_id] = await db('schemes').insert(scheme);
+  
+  // Fetch and return the newly created scheme using the captured scheme_id
+  const newScheme = await db('schemes')
+    .where({ scheme_id })
+    .first(); // Use .first() to get the object directly instead of an array
+  
+  return newScheme; // This should now contain the scheme with scheme_id and scheme_name
 }
 
-function addStep(scheme_id, step) { // EXERCISE E
+async function addStep(scheme_id, step) { // EXERCISE E
   /*
     1E- This function adds a step to the scheme with the given `scheme_id`
     and resolves to _all the steps_ belonging to the given `scheme_id`,
     including the newly created one.
   */
+    await db('steps').insert({ ...step, scheme_id });
+    return findSteps(scheme_id); // Reuse the findSteps function to return all steps for the scheme
+  
 }
 
 module.exports = {
